@@ -6,6 +6,7 @@ from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
 import joblib
 import logging
+import numpy as np
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -17,13 +18,15 @@ nltk.download('wordnet', quiet=True)
 
 app = Flask(__name__)
 
-# Load the pre-trained model
+# Load the pre-trained model and vectorizer
 try:
     model = joblib.load('models/expense_categorization_model.pkl')
-    app.logger.info("Model loaded successfully")
+    vectorizer = joblib.load('models/tfidf_vectorizer.pkl')  # Load the vectorizer if you're using one
+    app.logger.info("Model and vectorizer loaded successfully")
 except Exception as e:
-    app.logger.error(f"Failed to load model: {str(e)}")
+    app.logger.error(f"Failed to load model or vectorizer: {str(e)}")
     model = None
+    vectorizer = None
 
 # Text preprocessing function
 def preprocess_text(text):
@@ -35,11 +38,12 @@ def preprocess_text(text):
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    if model is None:
-        return jsonify({'error': 'Model not loaded'}), 500
+    if model is None or vectorizer is None:
+        return jsonify({'error': 'Model or vectorizer not loaded'}), 500
 
     try:
         data = request.get_json()
+        app.logger.info(f"Received data: {data}")  # Log the received data
         
         if not data or 'text' not in data:
             return jsonify({'error': 'Missing text field'}), 400
@@ -50,7 +54,10 @@ def predict():
         preprocessed_text = preprocess_text(text)
         app.logger.info(f"Preprocessed text: {preprocessed_text}")
 
-        prediction = model.predict([preprocessed_text])
+        # Transform the text using the vectorizer
+        vectorized_text = vectorizer.transform([preprocessed_text])
+        
+        prediction = model.predict(vectorized_text)
         app.logger.info(f"Prediction: {prediction[0]}")
 
         return jsonify({'category': prediction[0]})
