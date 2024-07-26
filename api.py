@@ -13,7 +13,7 @@ nltk.download('wordnet')
 app = Flask(__name__)
 
 # Load the pre-trained model
-model = joblib.load('expense_classifier.pkl')
+model = joblib.load('models/expense_categorization_model.pkl')
 
 # Text preprocessing function
 def preprocess_text(text):
