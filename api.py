@@ -1,52 +1,36 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[ ]:
-
-
-# api.py
-
 from flask import Flask, request, jsonify
-import joblib
-import re
+import os
 import nltk
 from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
+import joblib
 
-# Initialize Flask app
+nltk.download('stopwords')
+nltk.download('punkt')
+nltk.download('wordnet')
+
 app = Flask(__name__)
 
-# Load the model and vectorizer
-model = joblib.load('models/expense_categorization_model.pkl')
-vectorizer = joblib.load('models/tfidf_vectorizer.pkl')
+# Load the pre-trained model
+model = joblib.load('expense_classifier.pkl')
 
-# Preprocessing function
-nltk.download('stopwords')
-nltk.download('wordnet')
-lemmatizer = WordNetLemmatizer()
-stop_words = set(stopwords.words('english'))
-
+# Text preprocessing function
 def preprocess_text(text):
-    text = text.lower()
-    text = re.sub(r'[^\w\s]', '', text)
-    tokens = text.split()
-    tokens = [lemmatizer.lemmatize(word) for word in tokens if word not in stop_words]
-    return ' '.join(tokens)
+    lemmatizer = WordNetLemmatizer()
+    stop_words = set(stopwords.words('english'))
+    word_tokens = word_tokenize(text)
+    filtered_words = [lemmatizer.lemmatize(w.lower()) for w in word_tokens if w.lower() not in stop_words and w.isalnum()]
+    return ' '.join(filtered_words)
 
-@app.route('/categorize', methods=['POST'])
-def categorize():
-    description = request.json['description']
-    cleaned_description = preprocess_text(description)
-    features = vectorizer.transform([cleaned_description])
-    category = model.predict(features)[0]
-    return jsonify({'category': category})
+@app.route('/predict', methods=['POST'])
+def predict():
+    data = request.get_json()
+    text = data['text']
+    preprocessed_text = preprocess_text(text)
+    prediction = model.predict([preprocessed_text])
+    return jsonify({'category': prediction[0]})
 
 if __name__ == '__main__':
-    app.run(debug=False)
-
-
-# In[ ]:
-
-
-
-
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
