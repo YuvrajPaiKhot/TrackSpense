@@ -5,15 +5,25 @@ from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
 import joblib
+import logging
 
-nltk.download('stopwords')
-nltk.download('punkt')
-nltk.download('wordnet')
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+
+# Download NLTK data
+nltk.download('stopwords', quiet=True)
+nltk.download('punkt', quiet=True)
+nltk.download('wordnet', quiet=True)
 
 app = Flask(__name__)
 
 # Load the pre-trained model
-model = joblib.load('models/expense_categorization_model.pkl')
+try:
+    model = joblib.load('models/expense_categorization_model.pkl')
+    app.logger.info("Model loaded successfully")
+except Exception as e:
+    app.logger.error(f"Failed to load model: {str(e)}")
+    model = None
 
 # Text preprocessing function
 def preprocess_text(text):
@@ -25,11 +35,33 @@ def preprocess_text(text):
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    data = request.get_json()
-    text = data['text']
-    preprocessed_text = preprocess_text(text)
-    prediction = model.predict([preprocessed_text])
-    return jsonify({'category': prediction[0]})
+    if model is None:
+        return jsonify({'error': 'Model not loaded'}), 500
+
+    try:
+        data = request.get_json()
+        
+        if not data or 'text' not in data:
+            return jsonify({'error': 'Missing text field'}), 400
+        
+        text = data['text']
+        app.logger.info(f"Received text: {text}")
+
+        preprocessed_text = preprocess_text(text)
+        app.logger.info(f"Preprocessed text: {preprocessed_text}")
+
+        prediction = model.predict([preprocessed_text])
+        app.logger.info(f"Prediction: {prediction[0]}")
+
+        return jsonify({'category': prediction[0]})
+
+    except Exception as e:
+        app.logger.error(f"An error occurred: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    return jsonify({'status': 'healthy'}), 200
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
